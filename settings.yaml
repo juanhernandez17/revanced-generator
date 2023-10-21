@@ -1,0 +1,17 @@
+aaptFile: adb\aapt
+apkFolder: apks
+apkeditorlink: https://github.com/REAndroid/APKEditor/releases/latest
+apksFolder: apks
+errorFile: error.txt
+javaFile: zulu17\bin\java.exe
+keystoreFile: revanced\revanced.keystore
+keystorealias: revanced
+lastupDate: '2023-10-20 00:00:00'
+optionsjsonFile: revanced\options.json
+outputFolder: output
+revancedCacheFolder: revanced-cache
+revancedcliFolder: revanced\revanced-cli
+revancedintegrationsFolder: revanced\revanced-integrations
+revancedpatchesFolder: revanced\revanced-patches
+toolsjsonFile: revanced\tools.json
+toolsjsonendpoint: https://releases.revanced.app/tools
