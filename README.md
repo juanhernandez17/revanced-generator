@@ -8,16 +8,22 @@ GUI is devided into 3 parts
     - name = apk path
     - version = apk version
     - update = most recent version patches work for 'Latest' is default
+    - output = location where patched apk will be saved
 - bottom left will display the generated command
 - bottom right will display patches available for selected apk 
   - blue highlight means patch has options<br/>
-  - right click will allow to edit options<br/>
+  - bright blue highlight means required patch has options
+  - double click will allow to edit options and show patch information<br/>
   - red highlight means patch is not compatible with current apk version<br/>
 - buttons
   - show command - displays command
   - run command - will show the command then open a window to run command
   - save patches - save selected patches to json file
-- passing any args to gui will generate and run command for all apks in apks/
+  - select folder - select where the apks/ folder is
+- passing any args to gui will generate and run command for all apks in apks/ without the gui
+- view menu
+  - patch all - patches all apks in apks/ with gui
+  - reload - reload ui
 - settings.yaml contains settings that can be changed
 > aaptFile: adb\aapt - location of aapt  
 apkFolder: apks - folder containing all apks  
