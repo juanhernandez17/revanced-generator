@@ -1,5 +1,5 @@
 from pydantic import  Field, AliasPath, validator, BaseModel
-from typing import List, Optional,Annotated,Union
+from typing import List, Optional,Annotated,Union,Dict
 from pathlib import Path
 from settings import slugify
 class Option(BaseModel):
@@ -14,29 +14,46 @@ class Patch(BaseModel):
 	description:Optional[str] = Field(default=None)
 	use:Optional[bool] = Field(default=None)
 	requiresIntegrations:Optional[bool] = Field(default=None)
-	options:List[Option]
+	options:Dict[str,Option]
 	versions:Optional[List[str]] = Field(default=None)
 	def getOptionsDict(self):
 		return {x.key:x for x in self.options}
+	@validator('options',pre=True)
+	def option_parse(cls,value):
+		return {x['key']:x for x in value}
 
 class App(BaseModel):
 	name:str
-	patches: List[Patch]
+	patches: Dict[str,Patch]
+	
+	@validator('patches',pre=True)
+	def patches_parse(cls,value):
+		return {x['name']:x for x in value}
 	def getLatest(self):
 		newst = []
-		for patch in self.patches:
+		for patch in self.patches.values():
 			if patch.versions:
 				newst += patch.versions
 		if len(newst) > 0:
 			return sorted(newst)[-1]
 			
 		return "Latest"
-	def getPatches(self):
-		for i in range(len(self.patches)):
-			yield f'\t[{i:02}] - {self.patches[i].name:<50} - {self.patches[i].description} - Options:{len(self.patches[i].options)}'
-   
-   
-   
+
+	def getOptions(self):
+		defaults = []
+		for patch in self.patches.values():
+			if len(patch.options) > 0 :
+				tmp = {'patchName':patch.name}
+				tmp['options'] = []
+				for option in patch.options.values():
+					tmp['options'].append({
+						'key':option.key,
+						'value':option.value
+                    })
+				defaults.append(tmp)
+		return defaults
+			
+
 class Apk(BaseModel):
 	path:Path
 	name:str

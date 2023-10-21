@@ -108,7 +108,7 @@ class Revanced:
 				apatch['versions'] = app.pop('versions')
 				if app['name'] not in tmp:
 					tmp[app['name']] = app
-					tmp[app['name']]['patches'] = [apatch]+tmp['defaults']['patches']
+					tmp[app['name']]['patches'] = tmp['defaults']['patches']+[apatch]
 				else:
 					tmp[app['name']]['patches'].append(apatch)
 
@@ -141,7 +141,7 @@ class Revanced:
 		if apk.patches.exists():
 			for i in json.loads(apk.patches.read_text()):
 				patches += f' -i "{i}" '
-		elif any(x for x in app.patches if x.use):
+		elif any(x for x in app.patches.values() if x.use):
 			pass
 		else:
 			return "ERROR: No Patches Selected and No defaults Found"
