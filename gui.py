@@ -3,7 +3,7 @@ import sys,json
 from patchtool import Revanced
 import webbrowser
 # For PyQt5 :
-from PyQt5.QtWidgets import QApplication, QMainWindow, QShortcut, QWidget, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QVBoxLayout, QLineEdit, QFormLayout, QCheckBox,QTableWidget, QTableWidgetItem, QHeaderView,QPushButton,QFileDialog,QPlainTextEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QShortcut, QWidget, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QVBoxLayout, QLineEdit, QFormLayout, QCheckBox,QTableWidget, QTableWidgetItem, QHeaderView,QPushButton,QFileDialog,QPlainTextEdit, QLabel
 from PyQt5 import QtWidgets, QtCore
 # import qdarktheme
 import qdarkstyle
@@ -12,13 +12,14 @@ from pyqtspinner import WaitingSpinner
 
 class ProcessWindow(QDialog):
 
-	def __init__(self,command):
+	def __init__(self,app,command,auto):
 		super().__init__()
 		self.command = command
 		self.p = None
+		self.auto = auto
 		self.error = ''
 		self.res = ''
-		self.btn = QPushButton("Execute")
+		self.btn = QPushButton(f"Execute: {app}")
 		self.btn.pressed.connect(self.start_process)
 		self.text = QPlainTextEdit()
 		self.text.setReadOnly(True)
@@ -29,7 +30,8 @@ class ProcessWindow(QDialog):
 
 		
 		self.setLayout(l)
-
+		if self.auto:
+			self.start_process()
 	def message(self, s):
 		self.text.appendPlainText(s)
 
@@ -67,49 +69,50 @@ class ProcessWindow(QDialog):
 	def process_finished(self):
 		self.message("Process finished.")
 		self.p = None
+		if self.auto:
+			super().accept()
 
 class OptionsDialog(QDialog):
 	
-	def __init__(self, name, options):
+	def __init__(self, patch):
 		super().__init__()
-		self.fields = {}
-
-		self.setWindowTitle(f"Options: {name}")
-
+		self.updated = False
+		self.patch = patch
+		self.setWindowTitle(f"Options: {patch.name}")
+		self.description = QLabel(self)
+		self.description.setText(patch.description)
+		self.description.setAlignment(QtCore.Qt.AlignCenter)
 		QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
 
 		self.buttonBox = QDialogButtonBox(QBtn)
-		self.buttonBox.accepted.connect(self.accept)
+		self.buttonBox.accepted.connect(self.submit)
 		self.buttonBox.rejected.connect(self.reject)
 
 		self.form = QFormLayout()
-		for opt in options.values():
-			if isinstance(opt['value'],bool):
+		self.form.addWidget(self.description)
+		
+		for opt in patch.options.values():
+			if isinstance(opt.value,bool):
 				i = QCheckBox()
-				i.setCheckState(2)
-				i.stateChanged.connect(lambda text: self.update(opt['key'],bool(text)))
+				i.setCheckState(opt.value)
+				i.stateChanged.connect(lambda text: self.update(opt.key,bool(text)))
 			else:
 				i = QLineEdit()
-				i.setText(opt['value'])
-				i.textChanged.connect(lambda text: self.update(opt['key'],text))
-			self.fields[opt['key']] = {
-				'key':opt['key'],
-				'value':opt['value'],
-				'w':i
-			}
-			self.form.addRow(f"{opt['title']}:\n{opt['description']}",i)
+				i.setText(opt.value)
+				i.textChanged.connect(lambda text: self.update(opt.key,text))
+			self.form.addRow(f"{opt.title}:\n{opt.description}",i)
 		self.form.addWidget(self.buttonBox)
 		self.setLayout(self.form)
 
 	def update(self,field,value):
 		self.updated = True
-		self.fields[field]['value'] = value
+		self.patch.options[field].value = value
 
-	def accept(self):
+	def submit(self):
 		if self.updated:
-			for v in self.fields.values():			
-				v.pop('w')
 			super().accept()
+		else:
+			super().reject()
 
 class ApkDetailView(QListWidget):
 	def __init__(self, parent=None):
@@ -117,31 +120,27 @@ class ApkDetailView(QListWidget):
 		self.parent = parent
 		self.app = parent.app
 		self.apk = self.parent.apkdetails
+		self.selectedPatch = None
 		self.options = {}
 		# Right Click Menu
-		self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-		self.customContextMenuRequested.connect(self.right_menu)
+		self.doubleClicked.connect(self.set_Option)
+		self.itemClicked.connect(self.select)
+
+	def select(self,item):
+		self.selectedPatch = item
 
 	def loadDefaults(self):
-		defaults = {}
-		for patch in self.app.patches:
-			if len(patch.options) > 0 :
-				defaults[patch.name] = patch.model_dump()
-				defaults[patch.name]['options'] = {}
-				for option in patch.options:
-					defaults[patch.name]['options'][option.key] = option.model_dump()
-					pass
-		self.options = defaults
 		if self.apk.options.exists():
 			opts = json.loads(self.apk.options.read_text())
 			for x in opts:
 				for y in x['options']:
-					self.options[x['patchName']]['options'][y['key']].update(y)
+					self.app.patches[x['patchName']].options[y['key']].value = y['value']
 
 	def loadList(self):
+		self.selectedPatch = None
 		self.clear()
 		self.loadDefaults()
-		for patch in self.app.patches:
+		for patch in self.app.patches.values():
 			item = QListWidgetItem(patch.name)
 			if patch.use:
 				item.setCheckState(2)
@@ -150,43 +149,23 @@ class ApkDetailView(QListWidget):
 			if patch.versions is not None and self.parent.apkdetails.version not in patch.versions:
 				item.setBackground( QColor('#880000') )
 				item.setCheckState(0)
-			if any(x for x in patch.options if x.required):
+			if any(x for x in patch.options.values()):
+				item.setBackground( QColor('#000055') )
+			if any(x for x in patch.options.values() if x.required):
 				item.setBackground( QColor('#000088') )
 				if item.checkState() == 2:
 					item.setCheckState(1)
 			self.addItem(item)
 
-	def right_menu(self,pos):
-		
-		menu = QtWidgets.QMenu()
-		key = self.currentItem().text()
-		# Add menu options
-		addAll_option = menu.addAction('SetOption')
-
-		# Menu option events
-		addAll_option.triggered.connect(self.set_Option)
-
-		# Position
-		menu.exec_(self.mapToGlobal(pos))
-	
 	def set_Option(self):
-		key = self.currentItem().text()
-		k = OptionsDialog(key,self.options[key]['options'])
+		k = OptionsDialog(self.app.patches[self.selectedPatch.text()])
 		if k.exec_():
-			for x,y in k.fields.items():
-				self.options[key]['options'][x].update(y)
 			self.save_Options()
+			self.selectedPatch.setCheckState(2)
 		pass
   
 	def save_Options(self):	
-		tmp = []
-		for x in self.options.values():
-			tmp.append({
-				'patchName':x['name'],
-				'options':[{'key':y['key'],'value':y['value']} for y in x['options'].values()]
-			})
-
-		json.dump(tmp,self.apk.options.open('w'))
+		json.dump(self.app.getOptions(),self.apk.options.open('w'))
 
 class ApkListView(QWidget):
 	def __init__(self, folder,parent=None):
@@ -195,21 +174,25 @@ class ApkListView(QWidget):
 		self.folder = folder
 		self.layout = QtWidgets.QGridLayout()
 		self.setLayout(self.layout)
+  
+		self.selectedAPK = None
+		self.selectedAPKtext = None
 		self.app = None
 		self.apkdetails = None
+
 		self.apks = {}
 		self.apps = {}
-		# self.loadAPKs()
 		self.loadTable()
+
 		# Right Click Menu
-		self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-		self.customContextMenuRequested.connect(self.right_menu)
 
 	def loadTable(self):
-		self.wlist = QTableWidget()
-		self.wlist.verticalHeader().hide()
-		self.apkdetailslist = ApkDetailView(self)
-		self.details = QtWidgets.QTextBrowser()
+		self.apkTable = QTableWidget()
+		self.apkTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+		self.apkTable.customContextMenuRequested.connect(self.right_menu)
+		self.apkTable.verticalHeader().hide()
+		self.apkpatches = ApkDetailView(self)
+		self.commandText = QtWidgets.QTextBrowser()
   
 		self.commandBtn = QPushButton()
 		self.commandBtn.setText('Show Command')
@@ -220,9 +203,10 @@ class ApkListView(QWidget):
   
 		self.apklist = list(self.folder.rglob('*.apk'))
 
-		self.wlist.setRowCount(len(self.apklist))
-		self.wlist.setColumnCount(3)
-		self.wlist.setHorizontalHeaderLabels(['name','version','update'])
+		self.apkTable.setRowCount(len(self.apklist))
+		self.apkTable.setColumnCount(4)
+		self.apkTable.setHorizontalHeaderLabels(['name','version','update','output'])
+		self.apkTable.setColumnWidth(3,10)
 		count =0
 		for apk in self.apklist:
 			apkinfo = self.parent.rev.loadAPK(apk)
@@ -230,69 +214,75 @@ class ApkListView(QWidget):
 			self.apks[apk.as_posix()] = apkinfo
 			self.apps[apk.as_posix()] = self.parent.rev.getApkPatches(apkinfo.name)
 
-			self.wlist.setItem(count,0, QTableWidgetItem(apk.as_posix())) 
-			self.wlist.setItem(count,1, QTableWidgetItem(apkinfo.version)) 
-			self.wlist.setItem(count,2, QTableWidgetItem(self.apps[apk.as_posix()].getLatest()))
+			self.apkTable.setItem(count,0, QTableWidgetItem(apk.as_posix())) 
+			self.apkTable.setItem(count,1, QTableWidgetItem(apkinfo.version)) 
+			self.apkTable.setItem(count,2, QTableWidgetItem(self.apps[apk.as_posix()].getLatest()))
+			dld = QTableWidgetItem(str(apkinfo.outputFile))
+			if apkinfo.outputFile.exists():
+				dld.setBackground(QColor('#005500'))
+			self.apkTable.setItem(count,3, dld)
 
 			count+=1
-		self.wlist.horizontalHeader().setStretchLastSection(True) 
-		self.wlist.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) 
-		self.wlist.resizeColumnsToContents()
+		# self.apkTable.horizontalHeader().setStretchLastSection(True) 
+		self.apkTable.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) 
+		self.apkTable.resizeColumnsToContents()
   
-		self.layout.addWidget(self.wlist,1,1,1,3)
-		self.layout.addWidget(self.details,2,1,1,1)
-		self.layout.addWidget(self.apkdetailslist,2,2,1,2)
+		self.layout.addWidget(self.apkTable,1,1,1,3)
+		self.layout.addWidget(self.commandText,2,1,1,1)
+		self.layout.addWidget(self.apkpatches,2,2,1,2)
   
 		self.layout.addWidget(self.commandBtn,3,1,1,1)
 		self.layout.addWidget(self.runBtn,3,2,1,1)
 		self.layout.addWidget(self.saveBtn,3,3,1,1)
 
-
+		self.apkTable.itemClicked.connect(self.tableSelections)
+		# self.apkTable.
 		self.commandBtn.clicked.connect(self.command)
 		self.saveBtn.clicked.connect(self.savePatches)
 		self.runBtn.clicked.connect(self.runCommand)
-		self.wlist.clicked.connect(self.loadAPKDetails)
-		self.wlist.doubleClicked.connect(self.openMirror)
+		self.apkTable.clicked.connect(self.loadAPKPatches)
+		self.apkTable.doubleClicked.connect(self.openMirror)
+
+	def tableSelections(self,selection):
+		self.selectedAPK = self.apkTable.item(selection.row(), 0)
+		self.selectedAPKtext = self.selectedAPK.text()
+		self.apkdetails = self.apks[self.selectedAPKtext]
+		self.app = self.apps[self.selectedAPKtext]
 
 	def savePatches(self):
-		if self.wlist.item(self.wlist.currentRow(), 0) is None: return
-		ca = self.wlist.item(self.wlist.currentRow(), 0).text()
+		if self.selectedAPK is None: return
 		checked_items = []
-		for index in range(self.apkdetailslist.count()):
-			if self.apkdetailslist.item(index).checkState() == QtCore.Qt.Checked:
-				checked_items.append(self.apkdetailslist.item(index).text())
+		for index in range(self.apkpatches.count()):
+			if self.apkpatches.item(index).checkState() == QtCore.Qt.Checked:
+				checked_items.append(self.apkpatches.item(index).text())
 		if len(checked_items) > 0:
-			json.dump(checked_items,self.apks[ca].patches.open('w'))
+			json.dump(checked_items,self.apkdetails.patches.open('w'))
 
-	def runCommand(self):
-		if self.wlist.item(self.wlist.currentRow(), 0) is None: return
-		ca = self.wlist.item(self.wlist.currentRow(), 0).text()
+	def runCommand(self,auto=False):
+		if self.selectedAPK is None: return
 		command = self.command()
-		self.term = ProcessWindow(command)
-		self.term.exec_()
-		pass
+		if not command.startswith('ERROR:'):
+			self.term = ProcessWindow(self.selectedAPKtext,command,auto)
+			self.term.exec_()
+			pass
 
 	def command(self):
-		if self.wlist.item(self.wlist.currentRow(), 0) is None: return
-		ca = self.wlist.item(self.wlist.currentRow(), 0).text()
+		if self.selectedAPK is None: return
 		self.savePatches()
-		res = self.parent.rev.getPatchCommand(self.apks[ca])
-		self.details.setText(res)
+		res = self.parent.rev.getPatchCommand(self.apkdetails)
+		self.commandText.setText(res)
 		return res
 
-	def loadAPKDetails(self):
+	def loadAPKPatches(self):
 		self.apkoptions = {}
-		if self.wlist.item(self.wlist.currentRow(), 0) is None: return
-		ca = self.wlist.item(self.wlist.currentRow(), 0).text()
-		self.apkdetails = self.apks[ca]
-		self.app = self.apps[ca]
-		self.apkdetailslist.app = self.app
-		self.apkdetailslist.apk = self.apkdetails
+		if self.selectedAPK is None: return
+		self.apkpatches.app = self.app
+		self.apkpatches.apk = self.apkdetails
 	  
-		self.apkdetailslist.loadList()
+		self.apkpatches.loadList()
 		
 	def openMirror(self):
-		url = f"https://www.apkmirror.com/?s='{self.apkdetails['name']}'"
+		url = f"https://www.apkmirror.com/?s='{self.apkdetails.name}'"
 		webbrowser.open(url)
 		pass
 
@@ -309,9 +299,10 @@ class ApkListView(QWidget):
 		menu.exec_(self.mapToGlobal(pos))
 
 	def normalize(self):
-		ca = self.wlist.item(self.wlist.currentRow(), 0)
-		if self.apks[ca.text()].normalizeName():
-			ca.setText(self.apks[ca.text()].path.as_posix())
+		if self.apkdetails.normalizeName():
+			self.selectedAPK.setText(self.apkdetails.path.as_posix())
+
+
 
 class MainWindow(QMainWindow):
 	def __init__(self, parent=None):
@@ -341,16 +332,19 @@ class MainWindow(QMainWindow):
 		view_menu = menu_bar.addMenu("View")
 
 		# Add actions to view menu
+		patch_action = QtWidgets.QAction("Patch All", self)
 		load_action = QtWidgets.QAction("ReLoad", self)
 		folder_action = QtWidgets.QAction("Select Folder", self)
 		toggle_action = QtWidgets.QAction("Toggle Layout", self)
 		close_action = QtWidgets.QAction("Close App", self)
 
+		view_menu.addAction(patch_action)
 		view_menu.addAction(folder_action)
 		view_menu.addAction(load_action)
 		view_menu.addAction(toggle_action)
 		view_menu.addAction(close_action)
 
+		patch_action.triggered.connect(self.patchAll)
 		folder_action.triggered.connect(self.selectFolder)
 		close_action.triggered.connect(sys.exit)
 		load_action.triggered.connect(self.reload)
@@ -358,6 +352,14 @@ class MainWindow(QMainWindow):
 		self.setWindowTitle("ReVancedGEN")
 		self.startView()
 		self.show()
+
+	def patchAll(self):
+		for row in range(self.lsv.apkTable.rowCount()):
+			_item = self.lsv.apkTable.item(row, 0)
+			self.lsv.tableSelections(_item)
+			self.lsv.runCommand(True)
+			pass
+		
 
 	def startView(self):
 		self.lsv = ApkListView(self.folder,self)
