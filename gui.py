@@ -319,7 +319,7 @@ class MainWindow(QMainWindow):
 		self.rev = Revanced()
 
 		# self.setGeometry(1000, 1000, 300, 300)
-		self.folder = Path('apks')
+		self.folder = self.rev.settings.apkFolder
 		self.currentlayout = None
 		self.centerW = None
   

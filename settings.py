@@ -39,8 +39,7 @@ class _settings:
 		'toolsjsonendpoint':'https://releases.revanced.app/tools',
 		'apkeditorlink':'https://github.com/REAndroid/APKEditor/releases/latest',
 		'aaptFile':'adb\\aapt',
-		'outputFolder':'output', 
-		'apksFolder':'apks',
+		'outputFolder':'output',
 		'javaFile':'zulu17\\bin\\java.exe',
 		'revancedCacheFolder':'revanced-cache',
 		"keystoreFile": "revanced\\revanced.keystore",
@@ -90,7 +89,7 @@ class _settings:
 		jsondata = {}
 		for k,v in data.items():
 			if k.endswith('Date'):
-				jsondata[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+				jsondata[k] = v.strftime('%Y-%m-%d')
 			else:
 				jsondata[k] = str(v)
 		return jsondata

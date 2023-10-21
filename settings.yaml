@@ -1,7 +1,6 @@
 aaptFile: adb\aapt
 apkFolder: apks
 apkeditorlink: https://github.com/REAndroid/APKEditor/releases/latest
-apksFolder: apks
 errorFile: error.txt
 javaFile: zulu17\bin\java.exe
 keystoreFile: revanced\revanced.keystore
