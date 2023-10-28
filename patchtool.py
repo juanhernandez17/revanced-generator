@@ -39,6 +39,7 @@ class Revanced:
 	def loadSettings(self):
 		self.settings = _settings(self.settingsFile)
 		self.getTools()
+		self.getLocalTools()
   
 	def getLocalTools(self):
 		files = list(self.settings.revancedcliFolder.rglob('revanced-cli*.jar'))
@@ -54,28 +55,34 @@ class Revanced:
 		tmp = self.settings.to_dict()
 		yaml.dump(tmp,self.settingsFile.open('w',encoding='utf-8'))
 
+	def dowloadMostRecentTools(self,tools):
+		toollocation = None
+		for tool in tqdm(tools, 'Getting Tools'):
+			repo = tool['repository']
+			ct = tool['content_type']
+			if repo == 'revanced/revanced-patches' and ct == 'application/java-archive':
+				toollocation = self.settings.revancedpatchesFolder / tool['name']
+			elif repo == 'revanced/revanced-patches' and ct == 'application/json':
+				toollocation = self.settings.revancedpatchesFolder / ('revanced-patches-' + tool['version'] + '.json')
+			elif repo == 'revanced/revanced-integrations':
+				toollocation = self.settings.revancedintegrationsFolder / tool['name']
+			elif repo == 'revanced/revanced-cli':
+				toollocation = self.settings.revancedcliFolder / tool['name']
+			if toollocation and not toollocation.exists():
+				dlTool(tool['browser_download_url'], toollocation)
+    
+	@handle_exceptions
 	def getTools(self):
 		if self.settings.lastupDate != datetime.now().date():
-			res = requests.get(self.settings.toolsjsonendpoint)
-			if res.status_code == 200:
-				tools = res.json()['tools']
-				json.dump(tools, self.settings.toolsjsonFile.open('w'))
-				self.settings.lastupDate = datetime.now().date()
-				toollocation = None
-				for tool in tqdm(tools, 'Getting Tools'):
-					repo = tool['repository']
-					ct = tool['content_type']
-					if repo == 'revanced/revanced-patches' and ct == 'application/java-archive':
-						toollocation = self.settings.revancedpatchesFolder / tool['name']
-					elif repo == 'revanced/revanced-patches' and ct == 'application/json':
-						toollocation = self.settings.revancedpatchesFolder / ('revanced-patches-' + tool['version'] + '.json')
-					elif repo == 'revanced/revanced-integrations':
-						toollocation = self.settings.revancedintegrationsFolder / tool['name']
-					elif repo == 'revanced/revanced-cli':
-						toollocation = self.settings.revancedcliFolder / tool['name']
-					if toollocation and not toollocation.exists():
-						dlTool(tool['browser_download_url'], toollocation)
-		self.getLocalTools()
+			try:
+				res = requests.get(self.settings.toolsjsonendpoint)
+				if res.status_code == 200:
+					tools = res.json()['tools']
+			except:
+				tools = self.buildToolsjson()
+			json.dump(tools, self.settings.toolsjsonFile.open('w'))
+			self.dowloadMostRecentTools(tools)
+			self.settings.lastupDate = datetime.now().date()
 
 	def getApkInfo(self,apkpath):
 		command = f'aapt dump badging "{apkpath.absolute().as_posix()}"'
@@ -171,6 +178,30 @@ class Revanced:
 		with open(f.name, "r") as new_f:
 			errors = new_f.read()
 			return res, errors
+
+	
+	def buildToolsjson(self):
+		tools = []
+		@handle_exceptions
+		def getgit(url,repo):
+			response = requests.get(url.replace('{{repo}}',repo))
+			if response.status_code == 200:
+				js = response.json()
+				for asset in js['assets']:
+					yield{
+						"repository": repo,
+						"version": js['tag_name'],
+						"timestamp": asset['updated_at'],
+						"name": asset['name'],
+						"size": asset['size'],
+						"browser_download_url": asset['browser_download_url'],
+						"content_type": asset["content_type"]
+					}
+		for repo in self.settings.githubrepos:
+			tools+= [x for x in getgit(self.settings.githubendpoint,repo) if isinstance(x,dict)]
+
+		return tools
+
 
 def genMD5(data):
 	return md5(json.dumps(data).encode('utf-8')).hexdigest()

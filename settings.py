@@ -37,6 +37,12 @@ class _settings:
 		'revancedpatchesFolder':'revanced\\revanced-patches',
 		'apkFolder':'apks',
 		'toolsjsonendpoint':'https://releases.revanced.app/tools',
+		'githubendpoint':'https://api.github.com/repos/{{repo}}/releases/latest',
+		'githubrepos':[
+			'revanced/revanced-cli',
+			"revanced/revanced-integrations",	
+			'revanced/revanced-patches',
+		],
 		'apkeditorlink':'https://github.com/REAndroid/APKEditor/releases/latest',
 		'aaptFile':'adb\\aapt',
 		'outputFolder':'output',
