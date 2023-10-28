@@ -3,7 +3,7 @@ import sys,json
 from patchtool import Revanced
 import webbrowser
 # For PyQt5 :
-from PyQt5.QtWidgets import QApplication, QMainWindow, QShortcut, QWidget, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QVBoxLayout, QLineEdit, QFormLayout, QCheckBox,QTableWidget, QTableWidgetItem, QHeaderView,QPushButton,QFileDialog,QPlainTextEdit, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QShortcut, QWidget, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QVBoxLayout, QLineEdit, QFormLayout, QCheckBox,QTableWidget, QTableWidgetItem, QHeaderView,QPushButton,QFileDialog,QPlainTextEdit, QLabel, QProgressDialog, QProgressBar
 from PyQt5 import QtWidgets, QtCore
 # import qdarktheme
 import qdarkstyle
@@ -12,8 +12,9 @@ from pyqtspinner import WaitingSpinner
 
 class ProcessWindow(QDialog):
 
-	def __init__(self,app,command,auto):
+	def __init__(self,app,command,auto=False,progress=None):
 		super().__init__()
+		self.progress = progress
 		self.command = command
 		self.p = None
 		self.auto = auto
@@ -25,6 +26,8 @@ class ProcessWindow(QDialog):
 		self.text.setReadOnly(True)
 
 		l = QVBoxLayout()
+		if progress is not None:
+			l.addWidget(progress)
 		l.addWidget(self.btn)
 		l.addWidget(self.text)
 
@@ -32,6 +35,7 @@ class ProcessWindow(QDialog):
 		self.setLayout(l)
 		if self.auto:
 			self.start_process()
+
 	def message(self, s):
 		self.text.appendPlainText(s)
 
@@ -302,7 +306,46 @@ class ApkListView(QWidget):
 		if self.apkdetails.normalizeName():
 			self.selectedAPK.setText(self.apkdetails.path.as_posix())
 
+class ApksWindow(QDialog):
 
+	def __init__(self,parent):
+		super().__init__(parent)
+		self.organizer = QtWidgets.QVBoxLayout()
+		self.setLayout(self.organizer)
+		self.apkTable = QTableWidget()
+		# self.apkTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+		# self.apkTable.customContextMenuRequested.connect(self.right_menu)
+		self.apkTable.verticalHeader().hide()	
+		self.apkTable.setRowCount(len(parent.rev.apps)-1)
+		self.apkTable.setColumnCount(2)
+		self.apkTable.setHorizontalHeaderLabels(['name','version'])
+		self.apkTable.setColumnWidth(3,10)
+		self.apks = {x:y for x,y in parent.rev.apps.items() if y.name != 'General Apps'}
+		count = 0
+		for apk in self.apks.values():
+
+			self.apkTable.setItem(count,0, QTableWidgetItem(apk.name)) 
+			self.apkTable.setItem(count,1, QTableWidgetItem(apk.getLatest()))
+			# dld = QTableWidgetItem(str(apkinfo.outputFile))
+			# if apkinfo.outputFile.exists():
+			# 	dld.setBackground(QColor('#005500'))
+			# self.apkTable.setItem(count,3, dld)
+
+			count+=1
+		self.apkTable.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) 
+		self.apkTable.resizeColumnsToContents()
+		self.organizer.addWidget(self.apkTable)
+		self.apkTable.doubleClicked.connect(self.openMirror)
+
+	def openMirror(self,selection):
+		self.selectedAPK = self.apks[self.apkTable.item(selection.row(), 0).text()]
+		version = self.apkTable.item(selection.row(), 1).text()
+		q = self.selectedAPK.name
+		if version != 'Latest':
+			q += ' '+version
+		url = f"https://www.apkmirror.com/?s={q}"
+		webbrowser.open(url)
+		pass
 
 class MainWindow(QMainWindow):
 	def __init__(self, parent=None):
@@ -336,14 +379,17 @@ class MainWindow(QMainWindow):
 		load_action = QtWidgets.QAction("ReLoad", self)
 		folder_action = QtWidgets.QAction("Select Folder", self)
 		toggle_action = QtWidgets.QAction("Toggle Layout", self)
+		patches_action = QtWidgets.QAction("Show Apks", self)
 		close_action = QtWidgets.QAction("Close App", self)
 
 		view_menu.addAction(patch_action)
 		view_menu.addAction(folder_action)
 		view_menu.addAction(load_action)
 		view_menu.addAction(toggle_action)
+		view_menu.addAction(patches_action)
 		view_menu.addAction(close_action)
 
+		patches_action.triggered.connect(self.apks)
 		patch_action.triggered.connect(self.patchAll)
 		folder_action.triggered.connect(self.selectFolder)
 		close_action.triggered.connect(sys.exit)
@@ -353,13 +399,28 @@ class MainWindow(QMainWindow):
 		self.startView()
 		self.show()
 
+	def apks(self):
+		self.ws = ApksWindow(self)
+		self.ws.setWindowModality(QtCore.Qt.ApplicationModal)
+		self.ws.show()
+
 	def patchAll(self):
-		for row in range(self.lsv.apkTable.rowCount()):
+		sz = self.lsv.apkTable.rowCount()
+		progress = QProgressBar(self)
+		progress.setMinimum(0)
+		progress.setMaximum(sz)
+		self.rn = ProcessWindow('','',progress=progress)
+		self.rn.auto = True
+		self.rn.setWindowModality(QtCore.Qt.ApplicationModal)
+		for row in range(sz):
 			_item = self.lsv.apkTable.item(row, 0)
 			self.lsv.tableSelections(_item)
-			self.lsv.runCommand(True)
-			pass
-		
+			command = self.lsv.command()
+			if not command.startswith('ERROR:'):
+				self.rn.command = command
+				self.rn.start_process()
+				self.rn.show()
+			self.rn.progress.setValue(row)
 
 	def startView(self):
 		self.lsv = ApkListView(self.folder,self)
@@ -380,6 +441,7 @@ class MainWindow(QMainWindow):
 			self.folder = Path(path)
 			self.reload()
 		pass
+
 
 
 if __name__ == '__main__':
