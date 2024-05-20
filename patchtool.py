@@ -142,6 +142,13 @@ class Revanced:
 			apk.errorLog.open('w').write(errors)
 		return res,errors,succ
 
+	def getKeystore(self,apk):
+		res = list(apk.outputFolder.rglob(f'Revanced-{apk.title}*.keystore'))[-1]
+		if res:
+			return res.absolute().as_posix()
+		else:
+			return ''
+
 	def getPatchCommand(self,apk):
 		patches = ''
 		app = self.getApkPatches(apk.name)
@@ -160,6 +167,7 @@ class Revanced:
 			f'--merge "{self.revancedinteg.absolute().as_posix()}" ' ,
 			patches,
 			f'--options "{apk.options.absolute().as_posix()}" ' if apk.options.exists() else '',
+			f'--keystore "{self.getKeystore(apk)}" ',
 			# f'--keystore "{self.keystore.absolute().as_posix()}" --common-name Revanced '
 			f'"{apk.path.absolute().as_posix()}"'
 		)
