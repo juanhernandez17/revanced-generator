@@ -2,10 +2,12 @@ aaptFile: adb\aapt
 apkFolder: apks
 apkeditorlink: https://github.com/REAndroid/APKEditor/releases/latest
 errorFile: error.txt
+githubendpoint: https://api.github.com/repos/{{repo}}/releases/latest
+githubrepos: '[''revanced/revanced-cli'', ''revanced/revanced-integrations'', ''revanced/revanced-patches'']'
 javaFile: zulu17\bin\java.exe
 keystoreFile: revanced\revanced.keystore
 keystorealias: revanced
-lastupDate: '2023-10-20 00:00:00'
+lastupDate: '2024-04-26'
 optionsjsonFile: revanced\options.json
 outputFolder: output
 revancedCacheFolder: revanced-cache
