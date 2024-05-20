@@ -138,7 +138,10 @@ class ApkDetailView(QListWidget):
 			opts = json.loads(self.apk.options.read_text())
 			for x in opts:
 				for y in x['options']:
-					self.app.patches[x['patchName']].options[y['key']].value = y['value']
+					try:
+						self.app.patches[x['patchName']].options[y['key']].value = y['value']
+					except:
+						continue
 
 	def loadList(self):
 		self.selectedPatch = None
