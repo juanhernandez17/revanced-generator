@@ -80,9 +80,16 @@ class Revanced:
 					tools = res.json()['tools']
 			except:
 				tools = self.buildToolsjson()
+			self.writeTools(tools)
 			json.dump(tools, self.settings.toolsjsonFile.open('w'))
 			self.dowloadMostRecentTools(tools)
 			self.settings.lastupDate = datetime.now().date()
+
+	def writeTools(self,tools):
+		backup = self.settings.toolsjsonFile.with_suffix('.json.bk.'+datetime.now().strftime("%Y-%m-%d"))
+		if self.settings.toolsjsonFile.exists():
+			shutil.move(self.settings.toolsjsonFile, backup)
+		json.dump(tools, self.settings.toolsjsonFile.open('w'))
 
 	def getApkInfo(self,apkpath):
 		command = f'aapt dump badging "{apkpath.absolute().as_posix()}"'

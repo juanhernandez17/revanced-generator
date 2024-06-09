@@ -29,7 +29,7 @@ class _settings:
 	defaults = {
 		'lastupDate':datetime.fromtimestamp(0).date(),
 		'keystoreFile':'revanced\\revanced.keystore',
-		'toolsjsonFile':'revanced\\tools.json',
+		'toolsjsonFile':'revanced\\tools\\tools.json',
 		'optionsjsonFile':'revanced\\options.json',
 		# tool folders
 		'revancedcliFolder':'revanced\\revanced-cli',
