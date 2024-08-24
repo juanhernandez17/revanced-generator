@@ -86,8 +86,8 @@ class Revanced:
 			self.settings.lastupDate = datetime.now().date()
 
 	def writeTools(self,tools):
-		backup = self.settings.toolsjsonFile.with_suffix('.json.bk.'+datetime.now().strftime("%Y-%m-%d"))
 		if self.settings.toolsjsonFile.exists():
+			backup = self.settings.toolsjsonFile.with_suffix('.json.bk.'+datetime.now().strftime("%Y-%m-%d"))
 			shutil.move(self.settings.toolsjsonFile, backup)
 		json.dump(tools, self.settings.toolsjsonFile.open('w'))
 
