@@ -4,10 +4,15 @@ from pathlib import Path
 from settings import slugify
 class Option(BaseModel):
 	key:str
-	value:Union[bool, str,None] = Field(default=None,alias='default')
+	value:Union[bool, str, int, None] = Field(default=None,alias='default')
 	title:str
 	description:str
 	required:bool
+	@validator('value',pre=True)
+	def value_parse(cls,value):
+		if isinstance(value,list):
+			value = ','.join(value)
+		return value
  
 class Patch(BaseModel):
 	name:str
@@ -52,7 +57,6 @@ class App(BaseModel):
                     })
 				defaults.append(tmp)
 		return defaults
-			
 
 class Apk(BaseModel):
 	path:Path
